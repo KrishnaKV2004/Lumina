@@ -22,6 +22,11 @@ import androidx.core.app.ActivityCompat
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import android.util.Log
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Color
+import android.view.View
+import android.widget.FrameLayout
 import java.util.concurrent.Executors
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -71,7 +76,14 @@ fun EmptyScreen() {
     AndroidView(
         modifier = Modifier.fillMaxSize(),
         factory = { ctx ->
+            val container = FrameLayout(ctx)
+
             val previewView = PreviewView(ctx)
+            val overlay = BoxOverlayView(ctx)
+
+            container.addView(previewView)
+            container.addView(overlay)
+
             val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
 
             cameraProviderFuture.addListener({
@@ -112,7 +124,38 @@ fun EmptyScreen() {
 
                             try {
                                 interpreter.run(inputBuffer, outputBuffer)
-                                Log.d("Lumina", "Model inference executed")
+
+                                // Simple YOLO decoding
+                                val detections = outputBuffer[0]
+                                for (i in 0 until 8400) {
+
+                                    var bestClass = -1
+                                    var bestScore = 0f
+
+                                    // Class scores start from index 4
+                                    for (c in 4 until 84) {
+                                        val score = detections[c][i]
+                                        if (score > bestScore) {
+                                            bestScore = score
+                                            bestClass = c - 4
+                                        }
+                                    }
+
+                                    if (bestScore > 0.5f) {
+
+                                        val x = detections[0][i]
+                                        val y = detections[1][i]
+                                        val w = detections[2][i]
+                                        val h = detections[3][i]
+
+                                        overlay.setBox(x, y, w, h)
+
+                                        Log.d(
+                                            "Lumina",
+                                            "Object detected: class=$bestClass confidence=$bestScore box=($x,$y,$w,$h)"
+                                        )
+                                    }
+                                }
                             } catch (e: Exception) {
                                 Log.e("Lumina", "Inference error: ${e.message}")
                             }
@@ -132,7 +175,7 @@ fun EmptyScreen() {
                 )
             }, ContextCompat.getMainExecutor(ctx))
 
-            previewView
+            container
         }
     )
 }
@@ -163,4 +206,37 @@ fun imageProxyToBitmap(image: ImageProxy): Bitmap? {
     val imageBytes = out.toByteArray()
 
     return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+}
+class BoxOverlayView(context: android.content.Context) : View(context) {
+
+    private val paint = Paint().apply {
+        color = Color.RED
+        strokeWidth = 8f
+        style = Paint.Style.STROKE
+    }
+
+    private var box: FloatArray? = null
+
+    fun setBox(x: Float, y: Float, w: Float, h: Float) {
+        box = floatArrayOf(x, y, w, h)
+        postInvalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+
+        val b = box ?: return
+
+        val cx = b[0] * width
+        val cy = b[1] * height
+        val bw = b[2] * width
+        val bh = b[3] * height
+
+        val left = cx - bw / 2
+        val top = cy - bh / 2
+        val right = cx + bw / 2
+        val bottom = cy + bh / 2
+
+        canvas.drawRect(left, top, right, bottom, paint)
+    }
 }
