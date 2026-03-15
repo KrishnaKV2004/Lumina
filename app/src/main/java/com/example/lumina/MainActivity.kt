@@ -19,6 +19,8 @@ import org.tensorflow.lite.support.common.FileUtil
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.Executors
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
 
@@ -28,6 +30,20 @@ class MainActivity : ComponentActivity() {
 
     private val inputSize = 640
     private val executor = Executors.newSingleThreadExecutor()
+    private var lastProcessTime = 0L
+
+    private lateinit var tts: TextToSpeech
+    private val lastSpokenTimes = mutableMapOf<String, Long>()
+    private val cooldown = 5000L
+
+    private val priority = listOf(
+        "truck",
+        "bus",
+        "motorcycle",
+        "car",
+        "person",
+        "bicycle"
+    )
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -52,6 +68,12 @@ class MainActivity : ComponentActivity() {
 
         setContentView(container)
 
+        tts = TextToSpeech(this){
+            if(it == TextToSpeech.SUCCESS){
+                tts.language = Locale.US
+            }
+        }
+
         startCamera()
     }
 
@@ -72,6 +94,13 @@ class MainActivity : ComponentActivity() {
                 .build()
 
             analysis.setAnalyzer(executor) { image ->
+
+                val now = System.currentTimeMillis()
+                if(now - lastProcessTime < 1000){
+                    image.close()
+                    return@setAnalyzer
+                }
+                lastProcessTime = now
 
                 val bitmap = imageToBitmap(image)
 
@@ -136,7 +165,87 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    overlay.update(boxes,classes,scores)
+                    val finalBoxes = mutableListOf<FloatArray>()
+                    val finalClasses = mutableListOf<Int>()
+                    val finalScores = mutableListOf<Float>()
+
+                    for(i in boxes.indices){
+
+                        val a = boxes[i]
+                        var keep = true
+
+                        val ax1 = a[0] - a[2]/2
+                        val ay1 = a[1] - a[3]/2
+                        val ax2 = a[0] + a[2]/2
+                        val ay2 = a[1] + a[3]/2
+
+                        for(j in finalBoxes.indices){
+
+                            val b = finalBoxes[j]
+
+                            val bx1 = b[0] - b[2]/2
+                            val by1 = b[1] - b[3]/2
+                            val bx2 = b[0] + b[2]/2
+                            val by2 = b[1] + b[3]/2
+
+                            val interX1 = maxOf(ax1,bx1)
+                            val interY1 = maxOf(ay1,by1)
+                            val interX2 = minOf(ax2,bx2)
+                            val interY2 = minOf(ay2,by2)
+
+                            val interArea =
+                                maxOf(0f,interX2-interX1) *
+                                maxOf(0f,interY2-interY1)
+
+                            val areaA = a[2]*a[3]
+                            val areaB = b[2]*b[3]
+
+                            val iou = interArea/(areaA + areaB - interArea)
+
+                            if(iou > 0.45f){
+                                keep = false
+                                break
+                            }
+                        }
+
+                        if(keep){
+                            finalBoxes.add(a)
+                            finalClasses.add(classes[i])
+                            finalScores.add(scores[i])
+                        }
+                    }
+
+                    overlay.update(finalBoxes,finalClasses,finalScores)
+
+                    val detectedLabels = finalClasses.mapNotNull {
+                        if(it in LABELS.indices) LABELS[it] else null
+                    }.toSet().toMutableList()
+
+                    detectedLabels.sortBy {
+                        val idx = priority.indexOf(it)
+                        if(idx >= 0) idx else 999
+                    }
+
+                    val nowSpeak = System.currentTimeMillis()
+
+                    for(label in detectedLabels){
+
+                        val lastTime = lastSpokenTimes[label] ?: 0L
+
+                        if(nowSpeak - lastTime > cooldown){
+
+                            val message = "$label ahead"
+
+                            tts.speak(
+                                message,
+                                TextToSpeech.QUEUE_ADD,
+                                null,
+                                label
+                            )
+
+                            lastSpokenTimes[label] = nowSpeak
+                        }
+                    }
                 }
 
                 image.close()
