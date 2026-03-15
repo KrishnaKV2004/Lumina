@@ -62,11 +62,44 @@ class MainActivity : ComponentActivity() {
         previewView = PreviewView(this)
         overlay = OverlayView(this)
 
-        val container = FrameLayout(this)
-        container.addView(previewView)
-        container.addView(overlay)
+        val root = FrameLayout(this)
+        root.setBackgroundColor(Color.BLACK)
 
-        setContentView(container)
+        val cameraContainer = FrameLayout(this)
+
+        val params = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            1600
+        )
+
+        params.gravity = android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL
+        params.setMargins(60,220,60,80)
+
+        cameraContainer.layoutParams = params
+
+        val shape = android.graphics.drawable.GradientDrawable()
+        shape.setColor(Color.TRANSPARENT)
+        shape.cornerRadius = 120f
+
+        cameraContainer.background = shape
+        cameraContainer.clipToOutline = true
+
+        previewView.layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+
+        overlay.layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+
+        cameraContainer.addView(previewView)
+        cameraContainer.addView(overlay)
+
+        root.addView(cameraContainer)
+
+        setContentView(root)
 
         tts = TextToSpeech(this){
             if(it == TextToSpeech.SUCCESS){
@@ -356,17 +389,28 @@ class OverlayView(context: android.content.Context) : View(context){
             val bw = d[2]*width
             val bh = d[3]*height
 
-            val left = cx-bw/2
-            val top = cy-bh/2
-            val right = cx+bw/2
-            val bottom = cy+bh/2
+            var left = cx - bw/2
+            var top = cy - bh/2
+            var right = cx + bw/2
+            var bottom = cy + bh/2
 
-            canvas.drawRect(left,top,right,bottom,boxPaint)
+            // keep boxes away from rounded squircle corners
+            val inset = 120f   // match cameraContainer corner radius
 
-            val label = LABELS.getOrElse(classes[i]){"obj"}
-            val score = (scores[i]*100).toInt()
+            left = left.coerceAtLeast(inset)
+            top = top.coerceAtLeast(inset)
+            right = right.coerceAtMost(width.toFloat() - inset)
+            bottom = bottom.coerceAtMost(height.toFloat() - inset)
 
-            canvas.drawText("$label $score%",left,top-10,textPaint)
+            canvas.drawRect(left, top, right, bottom, boxPaint)
+
+            val label = LABELS.getOrElse(classes[i]) { "obj" }
+            val score = (scores[i] * 100).toInt()
+
+            // keep label inside screen (avoid top clipping in rounded corners)
+            val textY = (top - 10).coerceAtLeast(inset)
+
+            canvas.drawText("$label $score%", left, textY, textPaint)
         }
     }
 }
