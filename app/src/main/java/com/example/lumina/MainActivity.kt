@@ -29,6 +29,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.view.Gravity
+import android.telephony.SmsManager
 
 class MainActivity : ComponentActivity() {
 
@@ -109,7 +110,6 @@ class MainActivity : ComponentActivity() {
 
         setContentView(root)
 
-        // check if emergency contact already saved
         val prefs = getSharedPreferences("lumina_prefs", Context.MODE_PRIVATE)
         val savedNumber = prefs.getString("emergency_number", null)
 
@@ -121,7 +121,6 @@ class MainActivity : ComponentActivity() {
             container.orientation = LinearLayout.VERTICAL
             container.setPadding(60,60,60,60)
 
-// floating card margins (same as camera feed)
             val paramsCard = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -129,7 +128,6 @@ class MainActivity : ComponentActivity() {
             paramsCard.setMargins(60,0,60,80)
             container.layoutParams = paramsCard
 
-// samsung-like translucent glass
             val glass = GradientDrawable()
             glass.cornerRadius = 90f
             glass.setColor(Color.parseColor("#CC2A2A2A")) // translucent gray
@@ -188,6 +186,26 @@ class MainActivity : ComponentActivity() {
 
                 errorText.text = ""
                 prefs.edit().putString("emergency_number", number).apply()
+
+                val message = "You have been registered as an emergency contact for the Lumina assistive safety app. You may receive alerts if the user requires assistance."
+
+                try {
+
+                    if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.SEND_SMS)
+                        != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        // ask permission only after number is entered
+                        permissionLauncher.launch(Manifest.permission.SEND_SMS)
+                        return@setOnClickListener
+                    }
+
+                    val smsManager = SmsManager.getDefault()
+                    smsManager.sendTextMessage(number, null, message, null, null)
+
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
                 sheet.dismiss()
             }
 
