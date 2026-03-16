@@ -149,6 +149,7 @@ class MainActivity : ComponentActivity() {
 
             val input = EditText(this)
             input.hint = "Phone number"
+            input.inputType = android.text.InputType.TYPE_CLASS_PHONE
             input.setTextColor(Color.WHITE)
             input.setHintTextColor(Color.GRAY)
             input.setPadding(0,40,0,40)
