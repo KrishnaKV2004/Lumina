@@ -55,15 +55,27 @@ class MainActivity : ComponentActivity() {
     )
 
     private val permissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val permissionsNeeded = mutableListOf<String>()
+
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
+            permissionsNeeded.add(Manifest.permission.CAMERA)
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissionsNeeded.add(Manifest.permission.SEND_SMS)
+        }
+
+        if (permissionsNeeded.isNotEmpty()) {
+            permissionLauncher.launch(permissionsNeeded.toTypedArray())
         }
 
         interpreter = Interpreter(FileUtil.loadMappedFile(this,"model.tflite"))
@@ -190,15 +202,6 @@ class MainActivity : ComponentActivity() {
                 val message = "You have been registered as an emergency contact for the Lumina assistive safety app. You may receive alerts if the user requires assistance."
 
                 try {
-
-                    if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.SEND_SMS)
-                        != PackageManager.PERMISSION_GRANTED
-                    ) {
-                        // ask permission only after number is entered
-                        permissionLauncher.launch(Manifest.permission.SEND_SMS)
-                        return@setOnClickListener
-                    }
-
                     val smsManager = SmsManager.getDefault()
                     smsManager.sendTextMessage(number, null, message, null, null)
 
