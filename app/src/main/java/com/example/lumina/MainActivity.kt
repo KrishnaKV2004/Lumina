@@ -154,6 +154,12 @@ class MainActivity : ComponentActivity() {
             input.setHintTextColor(Color.GRAY)
             input.setPadding(0,40,0,40)
 
+            val errorText = TextView(this)
+            errorText.textSize = 12f
+            errorText.setTextColor(Color.parseColor("#B0B0B0")) // subtle grey like Apple/Samsung
+            errorText.setPadding(0,0,0,10)
+            errorText.text = ""
+
             val save = TextView(this)
             save.text = "Save"
             save.textSize = 16f
@@ -162,16 +168,33 @@ class MainActivity : ComponentActivity() {
             save.setPadding(0,40,0,0)
 
             save.setOnClickListener {
+
                 val number = input.text.toString().trim()
-                if (number.isNotEmpty()) {
-                    prefs.edit().putString("emergency_number", number).apply()
-                    sheet.dismiss()
+
+                if (number.isEmpty()) {
+                    errorText.text = "Enter phone number"
+                    return@setOnClickListener
                 }
+
+                if (!number.all { it.isDigit() }) {
+                    errorText.text = "Numbers only"
+                    return@setOnClickListener
+                }
+
+                if (number.length != 10) {
+                    errorText.text = "Phone number must be 10 digits"
+                    return@setOnClickListener
+                }
+
+                errorText.text = ""
+                prefs.edit().putString("emergency_number", number).apply()
+                sheet.dismiss()
             }
 
             container.addView(title)
             container.addView(message)
             container.addView(input)
+            container.addView(errorText)
             container.addView(save)
 
             sheet.setContentView(container)
