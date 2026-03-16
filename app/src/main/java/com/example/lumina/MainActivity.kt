@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
         val loadingScreen = FrameLayout(this)
         loadingScreen.setBackgroundColor(Color.BLACK)
         setContentView(loadingScreen)
-        
+
         val permissionsNeeded = mutableListOf<String>()
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -158,54 +158,83 @@ class MainActivity : ComponentActivity() {
             paramsCard.setMargins(60,0,60,80)
             container.layoutParams = paramsCard
 
-            val glass = GradientDrawable()
-            glass.cornerRadius = 90f
-            glass.setColor(Color.parseColor("#CC2A2A2A")) // translucent gray
+            val card = GradientDrawable()
+            card.cornerRadius = 80f
+            card.setColor(Color.parseColor("#F21E1E1E"))
 
-            container.background = glass
-            container.elevation = 25f
+            container.background = card
+            container.elevation = 30f
 
             val title = TextView(this)
             title.text = "Emergency Contact"
-            title.textSize = 20f
+            title.textSize = 22f
             title.setTextColor(Color.WHITE)
+            title.setTypeface(null, android.graphics.Typeface.BOLD)
+            title.gravity = Gravity.CENTER
+            title.textAlignment = View.TEXT_ALIGNMENT_CENTER
+            title.setPadding(0,0,0,10)
 
             val message = TextView(this)
-            message.text = "\nEnter the phone number that should receive alerts in case of a crash.\n"
+            message.text = "\nEnter the phone number that should receive alerts if a crash is detected\n"
             message.textSize = 14f
-            message.setTextColor(Color.LTGRAY)
+            message.setTextColor(Color.parseColor("#CFCFCF"))
+            message.gravity = Gravity.CENTER
+            message.textAlignment = View.TEXT_ALIGNMENT_CENTER
+            message.setPadding(0,0,0,20)
 
             val input = EditText(this)
             input.hint = "Phone number"
             input.inputType = android.text.InputType.TYPE_CLASS_PHONE
             input.setTextColor(Color.WHITE)
-            input.setHintTextColor(Color.GRAY)
-            input.setPadding(0,40,0,40)
+            input.setHintTextColor(Color.parseColor("#888888"))
+            input.setPadding(30,30,30,30)
+
+            val inputBg = GradientDrawable()
+            inputBg.cornerRadius = 60f
+            inputBg.setColor(Color.parseColor("#2A2A2A"))
+
+            input.background = inputBg
 
             val errorText = TextView(this)
             errorText.textSize = 12f
-            errorText.setTextColor(Color.parseColor("#B0B0B0")) // subtle grey like Apple/Samsung
-            errorText.setPadding(0,0,0,10)
+            errorText.setTextColor(Color.parseColor("#FF6B6B"))
+            errorText.setPadding(30,20,30,12)
             errorText.text = ""
 
             val save = TextView(this)
-            save.text = "Save"
-            save.textSize = 16f
+            save.text = "SAVE"
+            save.textSize = 15f
+            save.setTypeface(null, android.graphics.Typeface.BOLD)
             save.setTextColor(Color.WHITE)
-            save.gravity = Gravity.END
-            save.setPadding(0,40,0,0)
+            save.gravity = Gravity.CENTER
+            save.letterSpacing = 0.08f
+            save.setPadding(40,24,40,24)
+
+            val saveBg = GradientDrawable()
+            saveBg.cornerRadius = 50f
+            saveBg.setColor(Color.parseColor("#1A73E8"))
+
+            val saveParams = LinearLayout.LayoutParams(
+                (110 * resources.displayMetrics.density).toInt(),
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            saveParams.setMargins(0,30,0,0)
+            saveParams.gravity = Gravity.CENTER_HORIZONTAL
+
+            save.layoutParams = saveParams
+            save.background = saveBg
 
             save.setOnClickListener {
 
                 val number = input.text.toString().trim()
 
                 if (number.isEmpty()) {
-                    errorText.text = "Enter phone number"
+                    errorText.text = "Enter Phone Number"
                     return@setOnClickListener
                 }
 
                 if (!number.all { it.isDigit() }) {
-                    errorText.text = "Numbers only"
+                    errorText.text = "Numbers Only"
                     return@setOnClickListener
                 }
 
