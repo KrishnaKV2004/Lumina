@@ -165,6 +165,19 @@ class MainActivity : ComponentActivity() {
             container.background = card
             container.elevation = 30f
 
+            val icon = android.widget.ImageView(this)
+            icon.setImageResource(R.drawable.ic_emergency)
+            icon.setColorFilter(Color.parseColor("#1A73E8"))
+
+            val iconParams = LinearLayout.LayoutParams(
+                120,
+                120
+            )
+            iconParams.gravity = Gravity.CENTER
+            iconParams.setMargins(0,40,0,75)
+
+            icon.layoutParams = iconParams
+
             val title = TextView(this)
             title.text = "Emergency Contact"
             title.textSize = 22f
@@ -198,7 +211,8 @@ class MainActivity : ComponentActivity() {
             val errorText = TextView(this)
             errorText.textSize = 12f
             errorText.setTextColor(Color.parseColor("#FF6B6B"))
-            errorText.setPadding(30,20,30,12)
+            errorText.setPadding(30,70,30,45)
+            errorText.textAlignment = View.TEXT_ALIGNMENT_CENTER
             errorText.text = ""
 
             val save = TextView(this)
@@ -260,6 +274,7 @@ class MainActivity : ComponentActivity() {
                 startCamera()
             }
 
+            container.addView(icon)
             container.addView(title)
             container.addView(message)
             container.addView(input)
