@@ -3,6 +3,7 @@ package com.example.lumina
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.*
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.util.Size
 import android.view.View
@@ -21,6 +22,13 @@ import java.nio.ByteOrder
 import java.util.concurrent.Executors
 import android.speech.tts.TextToSpeech
 import java.util.Locale
+import android.app.AlertDialog
+import android.widget.EditText
+import android.content.Context
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.view.Gravity
 
 class MainActivity : ComponentActivity() {
 
@@ -100,6 +108,81 @@ class MainActivity : ComponentActivity() {
         root.addView(cameraContainer)
 
         setContentView(root)
+
+        // check if emergency contact already saved
+        val prefs = getSharedPreferences("lumina_prefs", Context.MODE_PRIVATE)
+        val savedNumber = prefs.getString("emergency_number", null)
+
+        if (savedNumber == null) {
+
+            val sheet = BottomSheetDialog(this)
+
+            val container = LinearLayout(this)
+            container.orientation = LinearLayout.VERTICAL
+            container.setPadding(60,60,60,60)
+
+// floating card margins (same as camera feed)
+            val paramsCard = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            paramsCard.setMargins(60,0,60,80)
+            container.layoutParams = paramsCard
+
+// samsung-like translucent glass
+            val glass = GradientDrawable()
+            glass.cornerRadius = 90f
+            glass.setColor(Color.parseColor("#CC2A2A2A")) // translucent gray
+
+            container.background = glass
+            container.elevation = 25f
+
+            val title = TextView(this)
+            title.text = "Emergency Contact"
+            title.textSize = 20f
+            title.setTextColor(Color.WHITE)
+
+            val message = TextView(this)
+            message.text = "\nEnter the phone number that should receive alerts in case of a crash.\n"
+            message.textSize = 14f
+            message.setTextColor(Color.LTGRAY)
+
+            val input = EditText(this)
+            input.hint = "Phone number"
+            input.setTextColor(Color.WHITE)
+            input.setHintTextColor(Color.GRAY)
+            input.setPadding(0,40,0,40)
+
+            val save = TextView(this)
+            save.text = "Save"
+            save.textSize = 16f
+            save.setTextColor(Color.WHITE)
+            save.gravity = Gravity.END
+            save.setPadding(0,40,0,0)
+
+            save.setOnClickListener {
+                val number = input.text.toString().trim()
+                if (number.isNotEmpty()) {
+                    prefs.edit().putString("emergency_number", number).apply()
+                    sheet.dismiss()
+                }
+            }
+
+            container.addView(title)
+            container.addView(message)
+            container.addView(input)
+            container.addView(save)
+
+            sheet.setContentView(container)
+            sheet.setCancelable(false)
+
+            sheet.setOnShowListener {
+                val bottomSheet = container.parent as View
+                bottomSheet.setBackgroundColor(Color.TRANSPARENT)
+            }
+
+            sheet.show()
+        }
 
         tts = TextToSpeech(this){
             if(it == TextToSpeech.SUCCESS){
