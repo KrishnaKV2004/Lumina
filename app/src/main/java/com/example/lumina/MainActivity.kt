@@ -257,6 +257,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 sheet.dismiss()
+                startCamera()
             }
 
             container.addView(title)
@@ -282,7 +283,9 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        startCamera()
+        if (savedNumber != null) {
+            startCamera()
+        }
     }
 
     private fun startCamera() {
