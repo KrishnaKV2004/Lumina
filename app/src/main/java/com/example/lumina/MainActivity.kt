@@ -55,11 +55,23 @@ class MainActivity : ComponentActivity() {
     )
 
     private val permissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+
+            val cameraGranted = result[Manifest.permission.CAMERA] ?: false
+            val smsGranted = result[Manifest.permission.SEND_SMS] ?: false
+
+            if (cameraGranted && smsGranted) {
+                startApp()
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val loadingScreen = FrameLayout(this)
+        loadingScreen.setBackgroundColor(Color.BLACK)
+        setContentView(loadingScreen)
+        
         val permissionsNeeded = mutableListOf<String>()
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -76,8 +88,14 @@ class MainActivity : ComponentActivity() {
 
         if (permissionsNeeded.isNotEmpty()) {
             permissionLauncher.launch(permissionsNeeded.toTypedArray())
+            return
+        } else {
+            startApp()
+            return
         }
+    }
 
+    private fun startApp() {
         interpreter = Interpreter(FileUtil.loadMappedFile(this,"model.tflite"))
 
         previewView = PreviewView(this)
