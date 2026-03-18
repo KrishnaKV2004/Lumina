@@ -1,5 +1,10 @@
 package com.example.lumina
 
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.*
@@ -45,6 +50,10 @@ class MainActivity : ComponentActivity() {
     private val lastSpokenTimes = mutableMapOf<String, Long>()
     private val cooldown = 5000L
 
+    private lateinit var sensorManager: SensorManager
+    private var lastCrashTime = 0L
+    private val crashCooldown = 10000L
+
     private val priority = listOf(
         "truck",
         "bus",
@@ -52,6 +61,28 @@ class MainActivity : ComponentActivity() {
         "car",
         "person",
         "bicycle"
+    )
+
+    private val allowedClasses = setOf(
+        "person",
+        "car",
+        "bus",
+        "truck",
+        "motorcycle",
+        "bicycle",
+        "cell phone",
+        "laptop",
+        "mouse",
+        "keyboard",
+        "remote",
+        "chair",
+        "bottle",
+        "cup",
+        "clock",
+        "backpack",
+        "traffic light",
+        "stop sign",
+        "parking meter"
     )
 
     private val permissionLauncher =
@@ -97,6 +128,8 @@ class MainActivity : ComponentActivity() {
 
     private fun startApp() {
         interpreter = Interpreter(FileUtil.loadMappedFile(this,"model.tflite"))
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        setupCrashDetection()
 
         previewView = PreviewView(this)
         overlay = OverlayView(this)
@@ -378,16 +411,20 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        if(bestScore > 0.4f){
+                        if(bestScore > 0.6f){
 
-                            val nx = if(x>1) x/inputSize else x
-                            val ny = if(y>1) y/inputSize else y
-                            val nw = if(w>1) w/inputSize else w
-                            val nh = if(h>1) h/inputSize else h
+                            val label = if(bestClass in LABELS.indices) LABELS[bestClass] else null
 
-                            boxes.add(floatArrayOf(nx,ny,nw,nh))
-                            scores.add(bestScore)
-                            classes.add(bestClass)
+                            if(label != null && label in allowedClasses){
+                                val nx = if(x>1) x/inputSize else x
+                                val ny = if(y>1) y/inputSize else y
+                                val nw = if(w>1) w/inputSize else w
+                                val nh = if(h>1) h/inputSize else h
+
+                                boxes.add(floatArrayOf(nx,ny,nw,nh))
+                                scores.add(bestScore)
+                                classes.add(bestClass)
+                            }
                         }
                     }
 
@@ -444,7 +481,8 @@ class MainActivity : ComponentActivity() {
                     overlay.update(finalBoxes,finalClasses,finalScores)
 
                     val detectedLabels = finalClasses.mapNotNull {
-                        if(it in LABELS.indices) LABELS[it] else null
+                        val label = if(it in LABELS.indices) LABELS[it] else null
+                        if(label in allowedClasses) label else null
                     }.toSet().toMutableList()
 
                     detectedLabels.sortBy {
@@ -534,6 +572,62 @@ class MainActivity : ComponentActivity() {
         val bytes = out.toByteArray()
 
         return BitmapFactory.decodeByteArray(bytes,0,bytes.size)
+    }
+    private fun setupCrashDetection() {
+
+        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+        val listener = object : SensorEventListener {
+
+            override fun onSensorChanged(event: SensorEvent?) {
+
+                val values = event?.values ?: return
+
+                val x = values[0]
+                val y = values[1]
+                val z = values[2]
+
+                val acceleration = Math.sqrt((x * x + y * y + z * z).toDouble()).toFloat()
+
+                val now = System.currentTimeMillis()
+
+                if (acceleration > 40 && now - lastCrashTime > crashCooldown) {
+
+                    lastCrashTime = now
+                    onCrashDetected()
+                }
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+
+        sensorManager.registerListener(
+            listener,
+            accelerometer,
+            SensorManager.SENSOR_DELAY_NORMAL
+        )
+    }
+
+    private fun onCrashDetected() {
+
+        val prefs = getSharedPreferences("lumina_prefs", Context.MODE_PRIVATE)
+        val number = prefs.getString("emergency_number", null) ?: return
+
+        val message = "⚠️ Emergency Alert ! Possible crash detected. Please check immediately"
+
+        try {
+            val smsManager = SmsManager.getDefault()
+            smsManager.sendTextMessage(number, null, message, null, null)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        tts.speak(
+            "Crash detected. Sending alert.",
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            "crash"
+        )
     }
 }
 
