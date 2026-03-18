@@ -35,6 +35,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.view.Gravity
 import android.telephony.SmsManager
+import android.telephony.SubscriptionManager
+import android.location.LocationManager
 
 class MainActivity : ComponentActivity() {
 
@@ -90,8 +92,9 @@ class MainActivity : ComponentActivity() {
 
             val cameraGranted = result[Manifest.permission.CAMERA] ?: false
             val smsGranted = result[Manifest.permission.SEND_SMS] ?: false
+            val locationGranted = result[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
 
-            if (cameraGranted && smsGranted) {
+            if (cameraGranted && smsGranted && locationGranted) {
                 startApp()
             }
         }
@@ -115,6 +118,12 @@ class MainActivity : ComponentActivity() {
             != PackageManager.PERMISSION_GRANTED
         ) {
             permissionsNeeded.add(Manifest.permission.SEND_SMS)
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissionsNeeded.add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
 
         if (permissionsNeeded.isNotEmpty()) {
@@ -573,6 +582,34 @@ class MainActivity : ComponentActivity() {
 
         return BitmapFactory.decodeByteArray(bytes,0,bytes.size)
     }
+    private fun getLocationLink(): String {
+        return try {
+
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                return "Location permission not granted"
+            }
+
+            val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+            val location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+
+            if (location != null) {
+                val lat = location.latitude
+                val lon = location.longitude
+                "https://maps.google.com/?q=$lat,$lon"
+            } else {
+                "Location unavailable (turn on GPS)"
+            }
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            "Location unavailable"
+        }
+    }
+
     private fun setupCrashDetection() {
 
         val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -591,7 +628,7 @@ class MainActivity : ComponentActivity() {
 
                 val now = System.currentTimeMillis()
 
-                if (acceleration > 40 && now - lastCrashTime > crashCooldown) {
+                if (acceleration > 50 && now - lastCrashTime > crashCooldown) {
 
                     lastCrashTime = now
                     onCrashDetected()
@@ -611,15 +648,29 @@ class MainActivity : ComponentActivity() {
     private fun onCrashDetected() {
 
         val prefs = getSharedPreferences("lumina_prefs", Context.MODE_PRIVATE)
-        val number = prefs.getString("emergency_number", null) ?: return
+        var number = prefs.getString("emergency_number", null) ?: return
 
-        val message = "⚠️ Emergency Alert ! Possible crash detected. Please check immediately"
+        val message = "⚠️ Emergency Alert ! Crash detected. Please check immediately."
 
-        try {
-            val smsManager = SmsManager.getDefault()
-            smsManager.sendTextMessage(number, null, message, null, null)
-        } catch (e: Exception) {
-            e.printStackTrace()
+        runOnUiThread {
+            android.widget.Toast.makeText(this, "Crash Detected", android.widget.Toast.LENGTH_SHORT).show()
+        }
+
+        android.util.Log.d("CRASH", "Crash detected, sending SMS to $number")
+
+        runOnUiThread {
+            try {
+                val smsManager = SmsManager.getDefault()
+                smsManager.sendTextMessage(number, null, message, null, null)
+
+                android.widget.Toast.makeText(this, "SMS Sent", android.widget.Toast.LENGTH_SHORT).show()
+                android.util.Log.d("SMS", "SMS sent successfully to $number")
+
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(this, "SMS FAILED", android.widget.Toast.LENGTH_LONG).show()
+                android.util.Log.e("SMS", "SMS failed: ${e.message}")
+                e.printStackTrace()
+            }
         }
 
         tts.speak(
