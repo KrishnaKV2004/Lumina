@@ -38,6 +38,10 @@ import android.telephony.SmsManager
 import android.telephony.SubscriptionManager
 import android.location.LocationManager
 
+import android.os.Vibrator
+import android.os.VibrationEffect
+import android.os.Build
+
 class MainActivity : ComponentActivity() {
 
     private lateinit var interpreter: Interpreter
@@ -54,7 +58,9 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var sensorManager: SensorManager
     private var lastCrashTime = 0L
-    private val crashCooldown = 10000L
+    private val crashCooldown = 3000L
+
+    private lateinit var vibrator: Vibrator
 
     private val priority = listOf(
         "truck",
@@ -138,6 +144,7 @@ class MainActivity : ComponentActivity() {
     private fun startApp() {
         interpreter = Interpreter(FileUtil.loadMappedFile(this,"model.tflite"))
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        vibrator = ContextCompat.getSystemService(this, Vibrator::class.java)!!
         setupCrashDetection()
 
         previewView = PreviewView(this)
@@ -501,6 +508,8 @@ class MainActivity : ComponentActivity() {
 
                     val nowSpeak = System.currentTimeMillis()
 
+                    var shouldVibrate = false
+
                     for(label in detectedLabels){
 
                         val lastTime = lastSpokenTimes[label] ?: 0L
@@ -517,7 +526,12 @@ class MainActivity : ComponentActivity() {
                             )
 
                             lastSpokenTimes[label] = nowSpeak
+                            shouldVibrate = true
                         }
+                    }
+
+                    if (shouldVibrate) {
+                        triggerStrongVibration()
                     }
                 }
 
@@ -610,6 +624,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun triggerStrongVibration() {
+        try {
+            if (!vibrator.hasVibrator()) return
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val effect = VibrationEffect.createOneShot(700, VibrationEffect.DEFAULT_AMPLITUDE)
+                vibrator.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(700)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     private fun setupCrashDetection() {
 
         val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -628,10 +658,11 @@ class MainActivity : ComponentActivity() {
 
                 val now = System.currentTimeMillis()
 
-                if (acceleration > 50 && now - lastCrashTime > crashCooldown) {
-
-                    lastCrashTime = now
-                    onCrashDetected()
+                if (acceleration > 80) {
+                    if (now - lastCrashTime > crashCooldown) {
+                        lastCrashTime = now
+                        onCrashDetected()
+                    }
                 }
             }
 
@@ -657,6 +688,7 @@ class MainActivity : ComponentActivity() {
         }
 
         android.util.Log.d("CRASH", "Crash detected, sending SMS to $number")
+        triggerStrongVibration()
 
         runOnUiThread {
             try {
@@ -665,6 +697,7 @@ class MainActivity : ComponentActivity() {
 
                 android.widget.Toast.makeText(this, "SMS Sent", android.widget.Toast.LENGTH_SHORT).show()
                 android.util.Log.d("SMS", "SMS sent successfully to $number")
+                triggerStrongVibration()
 
             } catch (e: Exception) {
                 android.widget.Toast.makeText(this, "SMS FAILED", android.widget.Toast.LENGTH_LONG).show()
