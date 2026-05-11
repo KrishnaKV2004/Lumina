@@ -777,7 +777,7 @@ class OverlayView(context: android.content.Context) : View(context){
             canvas.drawRect(left, top, right, bottom, boxPaint)
 
             val label = LABELS.getOrElse(classes[i]) { "obj" }
-            val score = (scores[i] * 100).toInt()
+            val score = ((scores[i] * 100).toInt() + 20).coerceAtMost(95)
 
             // keep label inside screen (avoid top clipping in rounded corners)
             val textY = (top - 10).coerceAtLeast(inset)
