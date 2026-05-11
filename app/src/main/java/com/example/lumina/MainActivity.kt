@@ -34,6 +34,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.view.Gravity
+import android.widget.Button
 import android.telephony.SmsManager
 import android.telephony.SubscriptionManager
 import android.location.LocationManager
@@ -47,6 +48,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var interpreter: Interpreter
     private lateinit var previewView: PreviewView
     private lateinit var overlay: OverlayView
+    private lateinit var analyzeButton: TextView
 
     private val inputSize = 640
     private val executor = Executors.newSingleThreadExecutor()
@@ -186,6 +188,60 @@ class MainActivity : ComponentActivity() {
         cameraContainer.addView(overlay)
 
         root.addView(cameraContainer)
+
+        // Analyze button
+        analyzeButton = TextView(this)
+        analyzeButton.text = "Analyze"
+        analyzeButton.textSize = 16f
+        analyzeButton.setTextColor(Color.WHITE)
+        analyzeButton.gravity = Gravity.CENTER
+        analyzeButton.setTypeface(null, android.graphics.Typeface.BOLD)
+        analyzeButton.setPadding(50,28,50,28)
+
+        val analyzeBg = GradientDrawable()
+        analyzeBg.cornerRadius = 60f
+        analyzeBg.setColor(Color.parseColor("#CC1E1E1E"))
+        analyzeButton.background = analyzeBg
+        analyzeButton.elevation = 20f
+
+        val analyzeParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        )
+
+        analyzeParams.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        analyzeParams.setMargins(0,0,0,120)
+
+        analyzeButton.layoutParams = analyzeParams
+
+        analyzeButton.setOnClickListener {
+            val detectedObjects = overlay.getDetectedLabels()
+            val analysis = if (detectedObjects.isEmpty()) {
+                "No important objects detected nearby."
+            } else {
+                val priorityObjects = detectedObjects.filter {
+                    it in listOf("person","car","truck","bus","motorcycle","bicycle")
+                }
+                when {
+                    priorityObjects.isNotEmpty() -> {
+                        "Caution. Nearby objects detected including ${priorityObjects.joinToString(", ")}. Please move carefully."
+                    }
+                    else -> {
+                        "Scene contains ${detectedObjects.joinToString(", ")}."
+                    }
+                }
+            }
+            triggerStrongVibration()
+            tts.speak(
+                analysis,
+                TextToSpeech.QUEUE_FLUSH,
+                null,
+                "scene_analysis"
+            )
+            android.widget.Toast.makeText(this, analysis, android.widget.Toast.LENGTH_LONG).show()
+        }
+
+        root.addView(analyzeButton)
 
         setContentView(root)
 
@@ -742,6 +798,12 @@ class OverlayView(context: android.content.Context) : View(context){
     private var boxes:List<FloatArray> = emptyList()
     private var classes:List<Int> = emptyList()
     private var scores:List<Float> = emptyList()
+
+    fun getDetectedLabels(): List<String> {
+        return classes.mapNotNull {
+            LABELS.getOrElse(it) { null }
+        }.distinct()
+    }
 
     fun update(b:List<FloatArray>,c:List<Int>,s:List<Float>){
         boxes=b
