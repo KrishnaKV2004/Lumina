@@ -43,12 +43,15 @@ import android.os.Vibrator
 import android.os.VibrationEffect
 import android.os.Build
 
+
 class MainActivity : ComponentActivity() {
 
     private lateinit var interpreter: Interpreter
     private lateinit var previewView: PreviewView
     private lateinit var overlay: OverlayView
     private lateinit var analyzeButton: TextView
+    private var isAnalyzeMode = false
+    private var isSpeakingAnalysis = false
 
     private val inputSize = 640
     private val executor = Executors.newSingleThreadExecutor()
@@ -63,6 +66,7 @@ class MainActivity : ComponentActivity() {
     private val crashCooldown = 3000L
 
     private lateinit var vibrator: Vibrator
+
 
     private val priority = listOf(
         "truck",
@@ -215,30 +219,58 @@ class MainActivity : ComponentActivity() {
         analyzeButton.layoutParams = analyzeParams
 
         analyzeButton.setOnClickListener {
-            val detectedObjects = overlay.getDetectedLabels()
-            val analysis = if (detectedObjects.isEmpty()) {
-                "No important objects detected nearby."
+
+            if (!isAnalyzeMode) {
+
+                isAnalyzeMode = true
+                analyzeButton.text = "Detect"
+
+                overlay.showBoxes = false
+                overlay.invalidate()
+
+                triggerStrongVibration()
+
+                tts.speak(
+                    "Analyzing surroundings using AI",
+                    TextToSpeech.QUEUE_FLUSH,
+                    null,
+                    "analyze_mode"
+                )
+
+                analyzeSceneWithAI()
+
+                executor.execute {
+                    while (isAnalyzeMode) {
+                        try {
+                            Thread.sleep(5000)
+
+                            if (!isSpeakingAnalysis && isAnalyzeMode) {
+                                analyzeSceneWithAI()
+                            }
+
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+
             } else {
-                val priorityObjects = detectedObjects.filter {
-                    it in listOf("person","car","truck","bus","motorcycle","bicycle")
-                }
-                when {
-                    priorityObjects.isNotEmpty() -> {
-                        "Caution. Nearby objects detected including ${priorityObjects.joinToString(", ")}. Please move carefully."
-                    }
-                    else -> {
-                        "Scene contains ${detectedObjects.joinToString(", ")}."
-                    }
-                }
+
+                isAnalyzeMode = false
+                analyzeButton.text = "Analyze"
+
+                overlay.showBoxes = true
+                overlay.invalidate()
+
+                triggerStrongVibration()
+
+                tts.speak(
+                    "Detection mode activated",
+                    TextToSpeech.QUEUE_FLUSH,
+                    null,
+                    "detect_mode"
+                )
             }
-            triggerStrongVibration()
-            tts.speak(
-                analysis,
-                TextToSpeech.QUEUE_FLUSH,
-                null,
-                "scene_analysis"
-            )
-            android.widget.Toast.makeText(this, analysis, android.widget.Toast.LENGTH_LONG).show()
         }
 
         root.addView(analyzeButton)
@@ -405,6 +437,69 @@ class MainActivity : ComponentActivity() {
 
         if (savedNumber != null) {
             startCamera()
+        }
+    }
+
+    private fun analyzeSceneWithAI() {
+
+        executor.execute {
+
+            try {
+
+                val detectedObjects = overlay.getDetectedLabels()
+
+                val aiText = when {
+
+                    detectedObjects.isEmpty() -> {
+                        "The surroundings appear mostly clear. No major obstacles detected nearby."
+                    }
+
+                    detectedObjects.any { it in listOf("car", "bus", "truck", "motorcycle") } -> {
+                        "Vehicles detected nearby. Please move carefully and stay alert while walking."
+                    }
+
+                    detectedObjects.contains("person") -> {
+                        "There are people nearby. The environment appears active and crowded."
+                    }
+
+                    detectedObjects.contains("chair") || detectedObjects.contains("table") -> {
+                        "Indoor furniture detected nearby. Move carefully to avoid obstacles."
+                    }
+
+                    detectedObjects.contains("traffic light") || detectedObjects.contains("stop sign") -> {
+                        "Traffic signals detected ahead. You may be near a road crossing or intersection."
+                    }
+
+                    else -> {
+                        "Detected objects include ${detectedObjects.joinToString(", ")}. Please proceed carefully."
+                    }
+                }
+
+                runOnUiThread {
+
+                    triggerStrongVibration()
+
+                    isSpeakingAnalysis = true
+                    tts.speak(
+                        aiText,
+                        TextToSpeech.QUEUE_FLUSH,
+                        null,
+                        "scene_ai"
+                    )
+
+                    val estimatedSpeechTime = (aiText.length * 70).toLong().coerceAtLeast(2500)
+                    android.os.Handler(mainLooper).postDelayed({
+                        isSpeakingAnalysis = false
+                    }, estimatedSpeechTime)
+
+                    // Removed Toast message for scene analysis result.
+                }
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+
+                // Removed Toast message for scene analysis failure.
+            }
         }
     }
 
@@ -799,6 +894,8 @@ class OverlayView(context: android.content.Context) : View(context){
     private var classes:List<Int> = emptyList()
     private var scores:List<Float> = emptyList()
 
+    var showBoxes = true
+
     fun getDetectedLabels(): List<String> {
         return classes.mapNotNull {
             LABELS.getOrElse(it) { null }
@@ -813,6 +910,10 @@ class OverlayView(context: android.content.Context) : View(context){
     }
 
     override fun onDraw(canvas: Canvas){
+
+        if (!showBoxes) {
+            return
+        }
 
         for(i in boxes.indices){
 
